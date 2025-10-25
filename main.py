@@ -8,18 +8,16 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
 
     task_list = ft.Column(spacing=10)
-
+    
     filter_type = 'all'
 
-    def load_task():
+    def load_task(filter_type=None):
         task_list.controls.clear()
-        for task_id, task_text in main_db.get_tasks():
-            task_list.controls.append(create_task_row(task_id=task_id, task_text=task_text))
-        
+        for task_id, task_text, completed in main_db.get_tasks(filter_type):
+            task_list.controls.append(create_task_row(task_id, task_text, completed))
         page.update()
 
-
-    def create_task_row(task_id, task_text):
+    def create_task_row(task_id, task_text, completed = None):
         task_field = ft.TextField(value=task_text, read_only=True, expand=True)
         now = datetime.datetime.now()
         time = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -45,10 +43,9 @@ def main(page: ft.Page):
             main_db.delete_task(task_id=task_id)
             load_task()
             
-
         delete_button = ft.IconButton(icon=ft.Icons.DELETE, tooltip="Удалить", on_click=delete_task, icon_color=ft.Colors.RED_700)
 
-        return ft.Row([task_time, task_field, edit_button, save_button, delete_button])
+        return ft.Row([task_time, task_field, edit_button, save_button, delete_button, checkbox ])
 
     def add_task(_):
         if task_input.value:
@@ -58,37 +55,46 @@ def main(page: ft.Page):
             task_input.value = ''
             page.update()
 
-
-    task_input = ft.TextField(label='Введите задачу', expand=True)
-    add_button = ft.ElevatedButton("ADD", on_click=add_task)
-
-    def set_filter(filter_value):
-        nonlocal filter_type 
-        filter_type = filter_value
+    def delete_all_tasks(_):
+        main_db.delete_all_tasks()
         load_task()
 
+   
+    def clear_completed(_):
+        main_db.delete_completed_tasks() 
+        load_task()
+    
     def toggle_task(task_id, is_completed):
         main_db.update_task(task_id, completed=int(is_completed))
         load_task()
 
-    filter_buttons = ft.Row([
-        ft.ElevatedButton('Все задачи', on_click=lambda e: set_filter(filter_value='all')),
-        ft.ElevatedButton('К выполнения', on_click=lambda e: set_filter(filter_value='uncompleted')),
-        ft.ElevatedButton('Выполнено ✅', on_click=lambda e: set_filter(filter_value='completed'))
-    ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
+    warning_text = ft.Text(
+        value="Длина задачи не должна превышать 100 символов!", 
+        color=ft.Colors.RED, 
+        visible=False,
+        size=12
+    )
     
-    
-    def delete_all_tasks(_):
-        main_db.delete_all_tasks()
-        load_task()
-    
+    def check_length(e):
+        if len(e.control.value) >= 100:
+           warning_text.visible = True
+        else:
+           warning_text.visible = False
+        page.update()
 
-    delete_all_button = ft.ElevatedButton(text='Delete all tasks',on_click=delete_all_tasks)
-    task_input = ft.TextField(label='Введите новую задачу', expand=True)
+    task_input = ft.TextField(label='Введите новую задачу', expand=True,max_length=100, on_change=check_length) 
     add_button = ft.IconButton(icon=ft.Icons.ADD, tooltip='Добавить задачу', on_click=add_task)
+    clear_completed_button = ft.ElevatedButton("Очистить выполненные", icon=ft.Icons.DELETE_SWEEP_OUTLINED, on_click=clear_completed,icon_color=ft.Colors.RED_400)
+    delete_all_button = ft.ElevatedButton("Удалить все задачи", on_click=delete_all_tasks)
+    
+    filter_buttons = ft.Row([
+        ft.ElevatedButton('Все задачи', on_click=lambda e: load_task()),
+        ft.ElevatedButton('К выполнению', on_click=lambda e: load_task("uncompleted")),
+        ft.ElevatedButton('Выполнено ✅', on_click=lambda e: load_task("completed"))
+    ], alignment=ft.MainAxisAlignment.SPACE_EVENLY)
 
-    page.add(ft.Row([task_input, add_button, delete_all_button]), filter_buttons, task_list)
-
+    page.add(ft.Row([task_input,add_button,delete_all_button,clear_completed_button]),warning_text,filter_buttons,task_list)
+    
     load_task()
 
 
